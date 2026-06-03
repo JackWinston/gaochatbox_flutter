@@ -52,4 +52,8 @@ class QuickStartLogic extends GetxController {
   void onPromptTap(SystemPrompt prompt) {
     // TODO: navigate to chat page
   }
+
+  void updateDragOverIndex(int index) {
+    state.dragOverIndex.value = index;
+  }
 }

@@ -18,9 +18,6 @@ class _QuickStartPageState extends State<QuickStartPage> {
   /// 业务逻辑控制器，通过 GetX 注入
   final QuickStartLogic logic = Get.put(QuickStartLogic());
 
-  /// 当前拖拽悬停的目标索引，用于高亮提示
-  int? _dragOverIndex;
-
   @override
   Widget build(BuildContext context) {
     // Obx 监听响应式变量变化，自动重建
@@ -88,18 +85,18 @@ class _QuickStartPageState extends State<QuickStartPage> {
       onWillAcceptWithDetails: (details) {
         final fromIndex = details.data;
         if (fromIndex == index) return false; // 不能拖到自己身上
-        setState(() => _dragOverIndex = index);
+        logic.updateDragOverIndex(index);
         return true;
       },
       // 拖拽项离开此区域时，取消高亮
       onLeave: (_) {
-        if (_dragOverIndex == index) {
-          setState(() => _dragOverIndex = null);
+        if (logic.state.dragOverIndex.value == index) {
+          logic.updateDragOverIndex(-1);
         }
       },
       // 拖拽项放下时，执行排序
       onAcceptWithDetails: (details) {
-        setState(() => _dragOverIndex = null);
+        logic.updateDragOverIndex(-1);
         final fromIndex = details.data;
         if (fromIndex == index) return;
         final items = logic.state.prompts.toList();
@@ -116,7 +113,7 @@ class _QuickStartPageState extends State<QuickStartPage> {
         logic.reorderPrompts(items);
       },
       builder: (context, candidateData, rejectedData) {
-        final isHovering = _dragOverIndex == index;
+        final isHovering = logic.state.dragOverIndex.value == index;
         // AnimatedContainer 实现高亮边框的平滑过渡动画
         return AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -225,7 +222,7 @@ class _QuickStartPageState extends State<QuickStartPage> {
         borderRadius: BorderRadius.circular(16),
         child: SizedBox(width: 160, child: _buildCardContent(prompt, theme)),
       ),
-      onDragEnd: (_) => setState(() => _dragOverIndex = null),
+      onDragEnd: (_) => logic.updateDragOverIndex(-1),
       child: Icon(
         Icons.drag_handle,
         size: 20,
