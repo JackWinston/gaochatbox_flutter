@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'quickstart/view.dart';
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -11,7 +13,7 @@ class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
 
   final _pages = const [
-    _QuickStartPage(),
+    QuickStartPage(),
     _HistoryPage(),
     _SettingsPage(),
   ];
@@ -44,15 +46,6 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
     );
-  }
-}
-
-class _QuickStartPage extends StatelessWidget {
-  const _QuickStartPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(child: Text('快捷开始'));
   }
 }
 

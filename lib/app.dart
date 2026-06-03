@@ -1,24 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:get/get.dart';
 
 import 'ui/home/home_page.dart';
-
-final _router = GoRouter(
-  initialLocation: '/',
-  routes: [
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const HomePage(),
-    ),
-  ],
-);
 
 class ChatBoxApp extends StatelessWidget {
   const ChatBoxApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
+    return GetMaterialApp(
       title: 'ChatBox',
       theme: ThemeData(
         colorSchemeSeed: Colors.blue,
@@ -31,7 +21,7 @@ class ChatBoxApp extends StatelessWidget {
         brightness: Brightness.dark,
       ),
       themeMode: ThemeMode.system,
-      routerConfig: _router,
+      home: const HomePage(),
     );
   }
 }

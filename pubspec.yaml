@@ -12,11 +12,11 @@ dependencies:
 
   cupertino_icons: ^1.0.8
 
+  get:
+
   # 状态管理
   flutter_riverpod: ^2.6.1
 
-  # 路由
-  go_router: ^14.8.1
 
 dev_dependencies:
   flutter_test:
