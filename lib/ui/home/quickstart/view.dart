@@ -18,6 +18,7 @@ class _QuickStartPageState extends State<QuickStartPage> {
   /// 业务逻辑控制器，通过 GetX 注入
   final QuickStartLogic logic = Get.put(QuickStartLogic());
 
+  //构建 widget 树
   @override
   Widget build(BuildContext context) {
     // Obx 监听响应式变量变化，自动重建
