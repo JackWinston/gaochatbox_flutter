@@ -34,19 +34,31 @@
 
 ## Flutter 架构设计
 
-### 状态管理：Riverpod
+### 状态管理 + 路由：GetX
 
-原项目使用 Dagger + ViewModel，Flutter 版使用 Riverpod 替代：
-- `StateNotifierProvider` 管理页面状态
-- `FutureProvider` / `StreamProvider` 管理异步数据流
-- `Provider` 管理依赖注入（替代 Dagger）
+原项目使用 Dagger + ViewModel + Intent，Flutter 版使用 GetX 替代：
 
-### 路由：go_router
+**状态管理**：
+- `.obs` + `Obx` 响应式变量（推荐，简单直接）
+- `GetBuilder` + `update()` 手动刷新（性能优先场景）
+- `Worker`（`ever`/`once`/`debounce`/`interval`）处理副作用
 
-原项目使用 Intent + Activity/Fragment，Flutter 版使用声明式路由：
-- `/` — 首页（底部导航）
-- `/chat/:id` — 聊天页
-- `/debug-log/:id` — 调试日志页
+**路由**：
+- `Get.to(() => Page())` — 跳转
+- `Get.back()` — 返回
+- `Get.offAll(() => Page())` — 清栈跳转
+
+**依赖注入**：
+- `Get.put(Controller())` — 注入
+- `Get.find<Controller>()` — 获取
+- `Get.lazyPut(() => Controller())` — 懒加载
+
+### 页面结构约定
+
+每个页面模块包含三个文件：
+- `view.dart` — UI 视图（StatelessWidget / StatefulWidget）
+- `logic.dart` — 业务逻辑（继承 GetxController）
+- `status.dart` — 状态定义（响应式变量）
 
 ### 本地存储
 
@@ -84,7 +96,7 @@
 ```
 lib/
 ├── main.dart                    # 入口
-├── app.dart                     # MaterialApp 配置、路由、主题
+├── app.dart                     # GetMaterialApp 配置、主题
 ├── app_theme.dart               # 主题定义（亮色/暗色）
 │
 ├── data/
@@ -110,26 +122,25 @@ lib/
 │       ├── chat_repository.dart     # 聊天业务逻辑
 │       └── settings_repository.dart # 设置数据操作
 │
-├── provider/
-│   ├── database_provider.dart       # 数据库 Provider
-│   ├── repository_provider.dart     # Repository Provider
-│   └── settings_provider.dart       # 设置状态 Provider
-│
 ├── ui/
 │   ├── home/
 │   │   ├── home_page.dart           # 底部导航壳
 │   │   ├── quickstart/
-│   │   │   ├── quickstart_page.dart
-│   │   │   └── quickstart_notifier.dart
+│   │   │   ├── view.dart            # 快捷开始页面 UI
+│   │   │   ├── logic.dart           # 快捷开始业务逻辑
+│   │   │   └── status.dart          # 快捷开始状态定义
 │   │   ├── history/
-│   │   │   ├── history_page.dart
-│   │   │   └── history_notifier.dart
+│   │   │   ├── view.dart
+│   │   │   ├── logic.dart
+│   │   │   └── status.dart
 │   │   └── settings/
-│   │       ├── settings_page.dart
-│   │       └── settings_notifier.dart
+│   │       ├── view.dart
+│   │       ├── logic.dart
+│   │       └── status.dart
 │   ├── chat/
-│   │   ├── chat_page.dart
-│   │   ├── chat_notifier.dart
+│   │   ├── view.dart
+│   │   ├── logic.dart
+│   │   ├── status.dart
 │   │   └── widget/
 │   │       ├── message_bubble.dart       # 消息气泡
 │   │       ├── streaming_message.dart    # 流式消息
@@ -140,7 +151,7 @@ lib/
 │   │       ├── model_selector.dart       # 模型选择器
 │   │       └── context_usage_bar.dart    # 上下文使用量
 │   └── debug_log/
-│       └── debug_log_page.dart
+│       └── view.dart
 │
 ├── util/
 │   ├── model_config_manager.dart    # 模型配置管理
@@ -162,12 +173,8 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # 状态管理
-  flutter_riverpod: ^2.x
-  riverpod_annotation: ^2.x
-
-  # 路由
-  go_router: ^14.x
+  # 状态管理 + 路由 + 依赖注入
+  get: ^4.x
 
   # 网络
   dio: ^5.x
@@ -199,7 +206,6 @@ dev_dependencies:
   json_serializable: ^6.x
   freezed: ^2.x
   drift_dev: ^2.x
-  riverpod_generator: ^2.x
   flutter_lints: ^6.0.0
 ```
 
@@ -310,7 +316,7 @@ dev_dependencies:
 # 安装依赖
 flutter pub get
 
-# 代码生成（drift、json_serializable、freezed、riverpod）
+# 代码生成（drift、json_serializable、freezed）
 dart run build_runner build --delete-conflicting-outputs
 
 # 运行
