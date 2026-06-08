@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.gao.chatbox.flutter" "\0"
-            VALUE "FileDescription", "chatbox_flutter" "\0"
+            VALUE "FileDescription", "GaoChatboxF" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "chatbox_flutter" "\0"
+            VALUE "InternalName", "GaoChatboxF" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.gao.chatbox.flutter. All rights reserved." "\0"
-            VALUE "OriginalFilename", "chatbox_flutter.exe" "\0"
-            VALUE "ProductName", "chatbox_flutter" "\0"
+            VALUE "OriginalFilename", "GaoChatboxF.exe" "\0"
+            VALUE "ProductName", "GaoChatboxF" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

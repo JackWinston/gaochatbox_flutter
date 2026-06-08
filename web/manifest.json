@@ -1,6 +1,6 @@
 {
-    "name": "chatbox_flutter",
-    "short_name": "chatbox_flutter",
+    "name": "GaoChatboxF",
+    "short_name": "GaoChatboxF",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
