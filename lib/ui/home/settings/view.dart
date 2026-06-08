@@ -420,375 +420,620 @@ class SettingsPage extends StatelessWidget {
     final tagController = TextEditingController(text: model?.tag ?? '');
     final apiUrlController = TextEditingController(text: model?.apiUrl ?? '');
     final apiKeyController = TextEditingController(text: model?.apiKey ?? '');
+    final apiTypeController = TextEditingController();
+    final anthropicModelController = TextEditingController(
+      text: model?.apiType == ModelConfig.apiTypeAnthropic
+          ? model?.defaultModel ?? ''
+          : '',
+    );
     final defaultModelController = TextEditingController(
       text: model?.defaultModel ?? '',
-    );
-    final modelsController = TextEditingController(
-      text: model?.models.join(', ') ?? '',
     );
     final contextLimitController = TextEditingController(
       text: model?.contextLimit?.toString() ?? '',
     );
+    final apiUrlFocusNode = FocusNode();
+    final apiKeyFocusNode = FocusNode();
+    final anthropicModelFocusNode = FocusNode();
 
     var apiType = model?.apiType ?? ModelConfig.apiTypeOpenAi;
     var isDefault = model?.isDefault ?? logic.state.models.isEmpty;
     var temperature = model?.temperature ?? 0.7;
+    var selectedDefaultModel = model?.defaultModel ?? '';
     var fetchedModels = [...model?.models ?? const <String>[]];
     var isFetchingModels = false;
-    var isResolvingContext = false;
     var detectedContextLimit = model?.detectedContextLimit;
     var contextLimitManuallySet = model?.contextLimitManuallySet ?? false;
+    var listenersAttached = false;
+    var didScheduleInitialFetch = false;
+    var obscureApiKey = true;
+    String? lastFetchSignature;
+    late StateSetter setDialogState;
+
+    bool isOpenAi() => apiType == ModelConfig.apiTypeOpenAi;
+
+    String apiTypeLabel(String currentApiType) {
+      return currentApiType == ModelConfig.apiTypeAnthropic
+          ? 'Anthropic'
+          : 'OpenAI';
+    }
+
+    String currentModelName() {
+      return isOpenAi()
+          ? selectedDefaultModel.trim()
+          : anthropicModelController.text.trim();
+    }
+
+    int temperatureDivisionsFor(String currentApiType) {
+      return currentApiType == ModelConfig.apiTypeAnthropic ? 20 : 20;
+    }
+
+    double temperatureMaxFor(String currentApiType) {
+      return currentApiType == ModelConfig.apiTypeAnthropic ? 1 : 2;
+    }
+
+    void clearFetchedModels() {
+      fetchedModels = [];
+      selectedDefaultModel = '';
+      defaultModelController.clear();
+      lastFetchSignature = null;
+    }
+
+    void syncApiTypeText() {
+      apiTypeController.text = apiTypeLabel(apiType);
+    }
+
+    void applyResolvedContextLimit(int value) {
+      detectedContextLimit = value;
+      contextLimitController.text = value.toString();
+    }
+
+    int fallbackContextLimit() {
+      final modelName = currentModelName();
+      return modelName.isEmpty
+          ? 65536
+          : (logic.resolveContextLimitStatic(
+                  apiType: apiType,
+                  modelName: modelName,
+                ) ??
+                65536);
+    }
+
+    Future<void> resolveContextLimitIfPossible({
+      bool showErrorFeedback = false,
+    }) async {
+      if (contextLimitManuallySet) {
+        return;
+      }
+
+      final apiUrl = apiUrlController.text.trim();
+      final apiKey = apiKeyController.text.trim();
+      final modelName = currentModelName();
+      if (apiUrl.isEmpty || apiKey.isEmpty || modelName.isEmpty) {
+        if (context.mounted) {
+          setDialogState(
+            () => applyResolvedContextLimit(fallbackContextLimit()),
+          );
+        }
+        return;
+      }
+
+      try {
+        final limit = await logic.resolveContextLimit(
+          apiType: apiType,
+          apiUrl: apiUrl,
+          apiKey: apiKey,
+          modelName: modelName,
+        );
+        if (!context.mounted) {
+          return;
+        }
+        setDialogState(() => applyResolvedContextLimit(limit));
+      } catch (e) {
+        if (!context.mounted) {
+          return;
+        }
+        setDialogState(() => applyResolvedContextLimit(fallbackContextLimit()));
+        if (showErrorFeedback) {
+          Get.snackbar(
+            'settings.snackbar.detect_failed'.tr,
+            e.toString(),
+            snackPosition: SnackPosition.BOTTOM,
+          );
+        }
+      }
+    }
+
+    syncApiTypeText();
+
+    Future<void> fetchRemoteModels({
+      bool force = false,
+      bool showFeedback = false,
+    }) async {
+      if (!isOpenAi()) {
+        if (context.mounted) {
+          setDialogState(() => clearFetchedModels());
+        }
+        return;
+      }
+
+      final apiUrl = apiUrlController.text.trim();
+      final apiKey = apiKeyController.text.trim();
+      if (apiUrl.isEmpty || apiKey.isEmpty) {
+        if (showFeedback) {
+          Get.snackbar(
+            'settings.snackbar.request_unavailable'.tr,
+            'settings.snackbar.fill_url_key'.tr,
+            snackPosition: SnackPosition.BOTTOM,
+          );
+        }
+        setDialogState(() => clearFetchedModels());
+        return;
+      }
+
+      final signature = '$apiType|$apiUrl|$apiKey';
+      if (!force &&
+          !isFetchingModels &&
+          signature == lastFetchSignature &&
+          fetchedModels.isNotEmpty) {
+        return;
+      }
+
+      setDialogState(() => isFetchingModels = true);
+      try {
+        final models = await logic.fetchModels(
+          apiType: apiType,
+          apiUrl: apiUrl,
+          apiKey: apiKey,
+        );
+        if (!context.mounted) {
+          return;
+        }
+
+        setDialogState(() {
+          fetchedModels = models;
+          lastFetchSignature = signature;
+          if (models.isEmpty) {
+            selectedDefaultModel = '';
+            defaultModelController.clear();
+            return;
+          }
+
+          final nextDefault = models.contains(selectedDefaultModel)
+              ? selectedDefaultModel
+              : models.first;
+          selectedDefaultModel = nextDefault;
+          defaultModelController.text = nextDefault;
+        });
+        await resolveContextLimitIfPossible();
+
+        if (showFeedback) {
+          Get.snackbar(
+            models.isEmpty
+                ? 'settings.snackbar.request_done'.tr
+                : 'settings.snackbar.request_success'.tr,
+            models.isEmpty
+                ? 'settings.snackbar.empty_model_list'.tr
+                : 'settings.snackbar.models_fetched'.trParams({
+                    'count': '${models.length}',
+                  }),
+            snackPosition: SnackPosition.BOTTOM,
+          );
+        }
+      } catch (e) {
+        if (context.mounted && showFeedback) {
+          Get.snackbar(
+            'settings.snackbar.request_failed'.tr,
+            e.toString(),
+            snackPosition: SnackPosition.BOTTOM,
+          );
+        }
+      } finally {
+        if (context.mounted) {
+          setDialogState(() => isFetchingModels = false);
+        }
+      }
+    }
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
-            title: Text(
-              model == null
-                  ? 'settings.dialog.add_model'.tr
-                  : 'settings.dialog.edit_model'.tr,
-            ),
-            content: SizedBox(
-              width: 520,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: tagController,
-                      decoration: InputDecoration(
-                        labelText: 'settings.field.tag'.tr,
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: apiType,
-                      decoration: InputDecoration(
-                        labelText: 'settings.field.api_type'.tr,
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: ModelConfig.apiTypeOpenAi,
-                          child: Text('OpenAI'),
+          builder: (context, setState) {
+            setDialogState = setState;
+
+            if (!listenersAttached) {
+              listenersAttached = true;
+              apiUrlFocusNode.addListener(() {
+                if (!apiUrlFocusNode.hasFocus) {
+                  fetchRemoteModels();
+                  resolveContextLimitIfPossible();
+                }
+              });
+              apiKeyFocusNode.addListener(() {
+                if (!apiKeyFocusNode.hasFocus) {
+                  fetchRemoteModels();
+                  resolveContextLimitIfPossible();
+                }
+              });
+              anthropicModelFocusNode.addListener(() {
+                if (!anthropicModelFocusNode.hasFocus) {
+                  resolveContextLimitIfPossible();
+                }
+              });
+            }
+
+            if (!didScheduleInitialFetch &&
+                isOpenAi() &&
+                apiUrlController.text.trim().isNotEmpty &&
+                apiKeyController.text.trim().isNotEmpty) {
+              didScheduleInitialFetch = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                fetchRemoteModels();
+              });
+            }
+
+            return AlertDialog(
+              title: Text(
+                model == null
+                    ? 'settings.dialog.add_model'.tr
+                    : 'settings.dialog.edit_model'.tr,
+              ),
+              content: SizedBox(
+                width: 520,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: tagController,
+                        decoration: InputDecoration(
+                          labelText: 'settings.field.tag'.tr,
+                          border: const OutlineInputBorder(),
                         ),
-                        DropdownMenuItem(
-                          value: ModelConfig.apiTypeAnthropic,
-                          child: Text('Anthropic'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: apiTypeController,
+                        readOnly: true,
+                        decoration: InputDecoration(
+                          labelText: 'settings.field.api_type'.tr,
+                          suffixIcon: const Icon(Icons.arrow_drop_down),
+                          border: const OutlineInputBorder(),
+                        ),
+                        onTap: () async {
+                          final value = await _showModelChoiceDialog(
+                            context,
+                            title: 'settings.field.api_type'.tr,
+                            options: const ['OpenAI', 'Anthropic'],
+                            currentValue: apiTypeLabel(apiType),
+                          );
+                          if (value == null || !context.mounted) {
+                            return;
+                          }
+
+                          final nextApiType = value == 'Anthropic'
+                              ? ModelConfig.apiTypeAnthropic
+                              : ModelConfig.apiTypeOpenAi;
+                          if (nextApiType == apiType) {
+                            return;
+                          }
+
+                          setState(() {
+                            apiType = nextApiType;
+                            syncApiTypeText();
+                            clearFetchedModels();
+                            if (isOpenAi()) {
+                              anthropicModelController.clear();
+                            } else {
+                              selectedDefaultModel = '';
+                              defaultModelController.clear();
+                            }
+                            temperature = temperature.clamp(
+                              0,
+                              temperatureMaxFor(apiType),
+                            );
+                          });
+
+                          if (isOpenAi()) {
+                            await fetchRemoteModels();
+                          } else {
+                            await resolveContextLimitIfPossible();
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: apiUrlController,
+                        focusNode: apiUrlFocusNode,
+                        onChanged: (_) {
+                          setState(() => clearFetchedModels());
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'settings.field.api_url'.tr,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: apiKeyController,
+                        focusNode: apiKeyFocusNode,
+                        obscureText: obscureApiKey,
+                        onChanged: (_) {
+                          setState(() => clearFetchedModels());
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'settings.field.api_key'.tr,
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              setState(() => obscureApiKey = !obscureApiKey);
+                            },
+                            icon: Icon(
+                              obscureApiKey
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                            ),
+                          ),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (isOpenAi())
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: defaultModelController,
+                                readOnly: true,
+                                onTap: () async {
+                                  if (isFetchingModels) {
+                                    return;
+                                  }
+                                  if (fetchedModels.isEmpty) {
+                                    await fetchRemoteModels(
+                                      force: true,
+                                      showFeedback: true,
+                                    );
+                                  }
+                                  if (fetchedModels.isEmpty ||
+                                      !context.mounted) {
+                                    return;
+                                  }
+
+                                  final selected = await _showModelChoiceDialog(
+                                    context,
+                                    title: 'settings.field.default_model'.tr,
+                                    options: fetchedModels,
+                                    currentValue: selectedDefaultModel,
+                                  );
+                                  if (selected != null && context.mounted) {
+                                    setState(() {
+                                      selectedDefaultModel = selected;
+                                      defaultModelController.text = selected;
+                                    });
+                                    await resolveContextLimitIfPossible();
+                                  }
+                                },
+                                decoration: InputDecoration(
+                                  labelText: 'settings.field.default_model'.tr,
+                                  suffixIcon: isFetchingModels
+                                      ? const Padding(
+                                          padding: EdgeInsets.all(12),
+                                          child: SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
+                                        )
+                                      : const Icon(Icons.arrow_drop_down),
+                                  border: const OutlineInputBorder(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            OutlinedButton(
+                              onPressed: isFetchingModels
+                                  ? null
+                                  : () {
+                                      fetchRemoteModels(
+                                        force: true,
+                                        showFeedback: true,
+                                      );
+                                    },
+                              child: Text('settings.fetch_models'.tr),
+                            ),
+                            if (isFetchingModels) ...[
+                              const SizedBox(width: 8),
+                              const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ],
+                          ],
+                        )
+                      else
+                        TextField(
+                          controller: anthropicModelController,
+                          focusNode: anthropicModelFocusNode,
+                          decoration: InputDecoration(
+                            labelText: 'settings.field.default_model'.tr,
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: contextLimitController,
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) {
+                          contextLimitManuallySet = true;
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'settings.field.context_limit'.tr,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      if (detectedContextLimit != null) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'settings.last_detected_context_limit'.trParams({
+                              'value': '$detectedContextLimit',
+                            }),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                         ),
                       ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => apiType = value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: apiUrlController,
-                      decoration: InputDecoration(
-                        labelText: 'settings.field.api_url'.tr,
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: apiKeyController,
-                      decoration: InputDecoration(
-                        labelText: 'settings.field.api_key'.tr,
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: isFetchingModels
-                            ? null
-                            : () async {
-                                final apiUrl = apiUrlController.text.trim();
-                                final apiKey = apiKeyController.text.trim();
-                                if (apiUrl.isEmpty || apiKey.isEmpty) {
-                                  Get.snackbar(
-                                    'settings.snackbar.request_unavailable'.tr,
-                                    'settings.snackbar.fill_url_key'.tr,
-                                    snackPosition: SnackPosition.BOTTOM,
-                                  );
-                                  return;
-                                }
-
-                                setState(() => isFetchingModels = true);
-                                try {
-                                  final models = await logic.fetchModels(
-                                    apiType: apiType,
-                                    apiUrl: apiUrl,
-                                    apiKey: apiKey,
-                                  );
-                                  fetchedModels = models;
-                                  modelsController.text = models.join(', ');
-
-                                  final currentDefault =
-                                      defaultModelController.text.trim();
-                                  if (models.isNotEmpty &&
-                                      (currentDefault.isEmpty ||
-                                          !models.contains(currentDefault))) {
-                                    defaultModelController.text = models.first;
-                                  }
-
-                                  if (models.isEmpty) {
-                                    Get.snackbar(
-                                      'settings.snackbar.request_done'.tr,
-                                      'settings.snackbar.empty_model_list'.tr,
-                                      snackPosition: SnackPosition.BOTTOM,
-                                    );
-                                  } else {
-                                    Get.snackbar(
-                                      'settings.snackbar.request_success'.tr,
-                                      'settings.snackbar.models_fetched'.trParams(
-                                        {'count': '${models.length}'},
-                                      ),
-                                      snackPosition: SnackPosition.BOTTOM,
-                                    );
-                                  }
-                                } catch (e) {
-                                  Get.snackbar(
-                                    'settings.snackbar.request_failed'.tr,
-                                    e.toString(),
-                                    snackPosition: SnackPosition.BOTTOM,
-                                  );
-                                } finally {
-                                  if (context.mounted) {
-                                    setState(() => isFetchingModels = false);
-                                  }
-                                }
-                              },
-                        icon: isFetchingModels
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.cloud_download_outlined),
-                        label: Text(
-                          isFetchingModels
-                              ? 'settings.fetching_models'.tr
-                              : 'settings.fetch_models'.tr,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: defaultModelController,
-                      decoration: InputDecoration(
-                        labelText: 'settings.field.default_model'.tr,
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: modelsController,
-                      minLines: 2,
-                      maxLines: 4,
-                      decoration: InputDecoration(
-                        labelText: 'settings.field.models'.tr,
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: contextLimitController,
-                      keyboardType: TextInputType.number,
-                      onChanged: (_) {
-                        contextLimitManuallySet = true;
-                      },
-                      decoration: InputDecoration(
-                        labelText: 'settings.field.context_limit'.tr,
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: isResolvingContext
-                            ? null
-                            : () async {
-                                final apiUrl = apiUrlController.text.trim();
-                                final apiKey = apiKeyController.text.trim();
-                                final modelName =
-                                    defaultModelController.text.trim();
-                                if (modelName.isEmpty) {
-                                  Get.snackbar(
-                                    'settings.snackbar.detect_unavailable'.tr,
-                                    'settings.snackbar.fill_default_model'.tr,
-                                    snackPosition: SnackPosition.BOTTOM,
-                                  );
-                                  return;
-                                }
-
-                                setState(() => isResolvingContext = true);
-                                try {
-                                  final limit = await logic.resolveContextLimit(
-                                    apiType: apiType,
-                                    apiUrl: apiUrl,
-                                    apiKey: apiKey,
-                                    modelName: modelName,
-                                  );
-                                  detectedContextLimit = limit;
-                                  contextLimitController.text =
-                                      limit.toString();
-                                  contextLimitManuallySet = false;
-                                  Get.snackbar(
-                                    'settings.snackbar.detect_done'.tr,
-                                    'settings.snackbar.context_limit_updated'
-                                        .trParams({'value': '$limit'}),
-                                    snackPosition: SnackPosition.BOTTOM,
-                                  );
-                                } catch (e) {
-                                  Get.snackbar(
-                                    'settings.snackbar.detect_failed'.tr,
-                                    e.toString(),
-                                    snackPosition: SnackPosition.BOTTOM,
-                                  );
-                                } finally {
-                                  if (context.mounted) {
-                                    setState(() => isResolvingContext = false);
-                                  }
-                                }
-                              },
-                        icon: isResolvingContext
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.auto_fix_high_outlined),
-                        label: Text(
-                          isResolvingContext
-                              ? 'settings.resolving_context_limit'.tr
-                              : 'settings.resolve_context_limit'.tr,
-                        ),
-                      ),
-                    ),
-                    if (detectedContextLimit != null) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          'settings.last_detected_context_limit'.trParams({
-                            'value': '$detectedContextLimit',
+                          'settings.model.temperature'.trParams({
+                            'value': temperature.toStringAsFixed(2),
                           }),
-                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),
+                      Slider(
+                        value: temperature,
+                        min: 0,
+                        max: temperatureMaxFor(apiType),
+                        divisions: temperatureDivisionsFor(apiType),
+                        label: temperature.toStringAsFixed(2),
+                        onChanged: (value) {
+                          setState(() => temperature = value);
+                        },
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('settings.set_as_default'.tr),
+                        value: isDefault,
+                        onChanged: (value) {
+                          setState(() => isDefault = value);
+                        },
+                      ),
                     ],
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'settings.model.temperature'.trParams({
-                              'value': temperature.toStringAsFixed(2),
-                            }),
-                          ),
-                        ),
-                        Switch(
-                          value: isDefault,
-                          onChanged: (value) {
-                            setState(() => isDefault = value);
-                          },
-                        ),
-                        Text('settings.set_as_default'.tr),
-                      ],
-                    ),
-                    Slider(
-                      value: temperature,
-                      min: 0,
-                      max: 2,
-                      divisions: 20,
-                      label: temperature.toStringAsFixed(2),
-                      onChanged: (value) {
-                        setState(() => temperature = value);
-                      },
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: Text('common.cancel'.tr),
-              ),
-              FilledButton(
-                onPressed: () async {
-                  final tag = tagController.text.trim();
-                  if (tag.isEmpty) {
-                    Get.snackbar(
-                      'settings.snackbar.save_failed'.tr,
-                      'settings.snackbar.empty_tag'.tr,
-                      snackPosition: SnackPosition.BOTTOM,
-                    );
-                    return;
-                  }
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text('common.cancel'.tr),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    final tag = tagController.text.trim();
+                    if (tag.isEmpty) {
+                      Get.snackbar(
+                        'settings.snackbar.save_failed'.tr,
+                        'settings.snackbar.empty_tag'.tr,
+                        snackPosition: SnackPosition.BOTTOM,
+                      );
+                      return;
+                    }
 
-                  var parsedModels = modelsController.text
-                      .split(RegExp(r'[\n,]'))
-                      .map((item) => item.trim())
-                      .where((item) => item.isNotEmpty)
-                      .toSet()
-                      .toList();
-                  final defaultModel = defaultModelController.text.trim();
-                  if (defaultModel.isNotEmpty &&
-                      !parsedModels.contains(defaultModel)) {
-                    parsedModels.insert(0, defaultModel);
-                  }
-                  if (fetchedModels.isNotEmpty && parsedModels.isEmpty) {
-                    parsedModels = [...fetchedModels];
-                  }
-
-                  final config = ModelConfig(
-                    id: model?.id ?? const Uuid().v4(),
-                    tag: tag,
-                    apiType: apiType,
-                    apiUrl: apiUrlController.text.trim(),
-                    apiKey: apiKeyController.text.trim(),
-                    models: parsedModels,
-                    defaultModel: defaultModel.isEmpty ? null : defaultModel,
-                    contextLimit: int.tryParse(
+                    final defaultModel = currentModelName();
+                    final parsedContextLimit = int.tryParse(
                       contextLimitController.text.trim(),
-                    ),
-                    detectedContextLimit: detectedContextLimit,
-                    contextLimitManuallySet: contextLimitManuallySet,
-                    temperature: temperature,
-                    isDefault: isDefault,
-                    createdAt:
-                        model?.createdAt ?? DateTime.now().millisecondsSinceEpoch,
-                  );
+                    );
+                    final finalContextLimit =
+                        parsedContextLimit ??
+                        detectedContextLimit ??
+                        logic.resolveContextLimitStatic(
+                          apiType: apiType,
+                          modelName: defaultModel,
+                        ) ??
+                        65536;
 
-                  if (model == null) {
-                    await logic.addModel(config);
-                  } else {
-                    await logic.updateModel(config);
-                  }
+                    final parsedModels = isOpenAi()
+                        ? <String>[
+                            ...fetchedModels,
+                            if (defaultModel.isNotEmpty &&
+                                !fetchedModels.contains(defaultModel))
+                              defaultModel,
+                          ]
+                        : (defaultModel.isNotEmpty
+                              ? <String>[defaultModel]
+                              : <String>[]);
 
-                  if (context.mounted) {
-                    Navigator.of(context).pop(true);
-                  }
-                },
-                child: Text('common.confirm'.tr),
-              ),
-            ],
-          ),
+                    final config = ModelConfig(
+                      id: model?.id ?? const Uuid().v4(),
+                      tag: tag,
+                      apiType: apiType,
+                      apiUrl: apiUrlController.text.trim(),
+                      apiKey: apiKeyController.text.trim(),
+                      models: parsedModels,
+                      defaultModel: defaultModel.isEmpty ? null : defaultModel,
+                      contextLimit: finalContextLimit,
+                      detectedContextLimit: detectedContextLimit,
+                      contextLimitManuallySet: contextLimitManuallySet,
+                      temperature: temperature,
+                      isDefault: isDefault,
+                      createdAt:
+                          model?.createdAt ??
+                          DateTime.now().millisecondsSinceEpoch,
+                    );
+
+                    if (model == null) {
+                      await logic.addModel(config);
+                    } else {
+                      await logic.updateModel(config);
+                    }
+
+                    if (context.mounted) {
+                      Navigator.of(context).pop(true);
+                    }
+                  },
+                  child: Text('common.confirm'.tr),
+                ),
+              ],
+            );
+          },
         );
       },
     );
 
+    apiUrlFocusNode.dispose();
+    apiKeyFocusNode.dispose();
+    anthropicModelFocusNode.dispose();
+
     if (saved == true) {
       return;
     }
+  }
+
+  Future<String?> _showModelChoiceDialog(
+    BuildContext context, {
+    required String title,
+    required List<String> options,
+    required String currentValue,
+  }) {
+    return showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text(title),
+        children: options
+            .map(
+              (option) => SimpleDialogOption(
+                onPressed: () => Navigator.of(context).pop(option),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(option)),
+                    if (option == currentValue)
+                      const Icon(Icons.check, size: 18),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
   }
 
   String _themeLabel(String value) {

@@ -120,20 +120,22 @@ class SettingsLogic extends GetxController {
   }) async {
     if (apiType == ModelConfig.apiTypeAnthropic) {
       final response = await AnthropicApi(apiUrl).getModels(apiKey);
-      final models = response.data
-          .map((item) => item.id)
-          .where((item) => item.isNotEmpty)
-          .toList()
-        ..sort();
+      final models =
+          response.data
+              .map((item) => item.id)
+              .where((item) => item.isNotEmpty)
+              .toList()
+            ..sort();
       return models;
     }
 
     final response = await OpenAiApi(apiUrl).getModels(apiKey);
-    final models = response.data
-        .map((item) => item.id)
-        .where((item) => item.isNotEmpty)
-        .toList()
-      ..sort();
+    final models =
+        response.data
+            .map((item) => item.id)
+            .where((item) => item.isNotEmpty)
+            .toList()
+          ..sort();
     return models;
   }
 
@@ -147,6 +149,16 @@ class SettingsLogic extends GetxController {
       apiType: apiType,
       apiUrl: apiUrl,
       apiKey: apiKey,
+      modelName: modelName,
+    );
+  }
+
+  int? resolveContextLimitStatic({
+    required String apiType,
+    required String modelName,
+  }) {
+    return _contextLimitResolver.resolveStatic(
+      apiType: apiType,
       modelName: modelName,
     );
   }
