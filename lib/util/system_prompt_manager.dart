@@ -1,6 +1,8 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+
 import '../data/model/system_prompt.dart';
+import '../i18n/app_translations.dart';
 
 class SystemPromptManager {
   static const _keyPrompts = 'system_prompts';
@@ -172,65 +174,58 @@ class SystemPromptManager {
     return [
       SystemPrompt(
         id: _uuid.v4(),
-        tag: '默认',
-        content: '你是一个智能助手',
+        tag: AppTranslations.presetTag(_presetKeyDefault),
+        content: AppTranslations.presetContent(_presetKeyDefault),
         isDefault: true,
         isPreset: true,
         presetKey: _presetKeyDefault,
       ),
       SystemPrompt(
         id: _uuid.v4(),
-        tag: '家庭医生',
-        content:
-            '你是一位谨慎的家庭医生，请用通俗易懂的中文分析常见症状、可能原因、居家处理建议，以及何时需要尽快线下就医。不要替代正式诊断；若出现急重症风险，请优先建议前往急诊，并提醒用户及时呼叫急救。',
+        tag: AppTranslations.presetTag(_presetKeyFamilyDoctor),
+        content: AppTranslations.presetContent(_presetKeyFamilyDoctor),
         isPreset: true,
         presetKey: _presetKeyFamilyDoctor,
       ),
       SystemPrompt(
         id: _uuid.v4(),
-        tag: '律师',
-        content:
-            '你是一名专业律师助理，请基于中国语境提供清晰、审慎的法律信息梳理，说明常见风险、可行思路、需要准备的材料，以及建议咨询执业律师的边界，不要编造法条。',
+        tag: AppTranslations.presetTag(_presetKeyLawyer),
+        content: AppTranslations.presetContent(_presetKeyLawyer),
         isPreset: true,
         presetKey: _presetKeyLawyer,
       ),
       SystemPrompt(
         id: _uuid.v4(),
-        tag: '翻译助手',
-        content:
-            '你是一名专业翻译助手，请根据上下文进行准确、自然、地道的双语翻译；把中文翻译成英文，把英文翻译成中文，不必有其他输出。',
+        tag: AppTranslations.presetTag(_presetKeyTranslator),
+        content: AppTranslations.presetContent(_presetKeyTranslator),
         isPreset: true,
         presetKey: _presetKeyTranslator,
       ),
       SystemPrompt(
         id: _uuid.v4(),
-        tag: '写作助手',
-        content:
-            '你是一名中文写作助手，请帮助我润色、扩写、改写和提炼内容，让表达更清晰、更有逻辑、更自然；必要时给出多个不同风格版本。',
+        tag: AppTranslations.presetTag(_presetKeyWriter),
+        content: AppTranslations.presetContent(_presetKeyWriter),
         isPreset: true,
         presetKey: _presetKeyWriter,
       ),
       SystemPrompt(
         id: _uuid.v4(),
-        tag: '编程助手',
-        content:
-            '你是一名资深编程助手，请优先给出可执行的解决方案、关键代码、排查思路和注意事项；回答尽量准确、简洁，并说明方案适用前提。',
+        tag: AppTranslations.presetTag(_presetKeyProgrammer),
+        content: AppTranslations.presetContent(_presetKeyProgrammer),
         isPreset: true,
         presetKey: _presetKeyProgrammer,
       ),
       SystemPrompt(
         id: _uuid.v4(),
-        tag: '面试教练',
-        content:
-            '你是一名面试教练，请围绕岗位要求帮助我准备自我介绍、项目亮点、常见追问和回答优化建议；必要时模拟面试并给出反馈。',
+        tag: AppTranslations.presetTag(_presetKeyInterviewCoach),
+        content: AppTranslations.presetContent(_presetKeyInterviewCoach),
         isPreset: true,
         presetKey: _presetKeyInterviewCoach,
       ),
       SystemPrompt(
         id: _uuid.v4(),
-        tag: '学习辅导',
-        content:
-            '你是一名耐心的学习辅导老师，请按照由浅入深的方式讲解知识点，结合示例、类比和练习题帮助我理解，并根据我的水平调整难度。',
+        tag: AppTranslations.presetTag(_presetKeyStudyTutor),
+        content: AppTranslations.presetContent(_presetKeyStudyTutor),
         isPreset: true,
         presetKey: _presetKeyStudyTutor,
       ),

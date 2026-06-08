@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
+import 'settings/view.dart';
 import 'quickstart/view.dart';
 
 class HomePage extends StatefulWidget {
@@ -12,10 +14,10 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
 
-  final _pages = const [
-    QuickStartPage(),
-    _HistoryPage(),
-    _SettingsPage(),
+  final _pages = [
+    const QuickStartPage(),
+    const _HistoryPage(),
+    SettingsPage(),
   ];
 
   @override
@@ -27,21 +29,21 @@ class _HomePageState extends State<HomePage> {
         onDestinationSelected: (index) {
           setState(() => _currentIndex = index);
         },
-        destinations: const [
+        destinations: [
           NavigationDestination(
             icon: Icon(Icons.rocket_launch_outlined),
             selectedIcon: Icon(Icons.rocket_launch),
-            label: '快捷开始',
+            label: 'nav.quick_start'.tr,
           ),
           NavigationDestination(
             icon: Icon(Icons.history_outlined),
             selectedIcon: Icon(Icons.history),
-            label: '历史记录',
+            label: 'nav.history'.tr,
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
             selectedIcon: Icon(Icons.settings),
-            label: '设置',
+            label: 'nav.settings'.tr,
           ),
         ],
       ),
@@ -54,15 +56,6 @@ class _HistoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: Text('历史记录'));
-  }
-}
-
-class _SettingsPage extends StatelessWidget {
-  const _SettingsPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(child: Text('设置'));
+    return Center(child: Text('history.title'.tr));
   }
 }

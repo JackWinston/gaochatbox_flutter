@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
-import 'app.dart';
+import 'package:get/get.dart';
 
-void main() {
+import 'app.dart';
+import 'app_settings_service.dart';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Get.putAsync(() => AppSettingsService().init());
   runApp(ChatBoxApp());
 }

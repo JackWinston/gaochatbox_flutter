@@ -1,7 +1,7 @@
 # ChatBox Flutter
 
 基于 Android View 版本（`chatbox_view`）的 Flutter 重写项目，用于复习 Flutter 基础知识。
-Android View 版本地址如下：D:\projects\android\chatbox\chatbox_view
+Android View 版本相对路径如下：../chatbox_view
 
 ## 原项目概述
 

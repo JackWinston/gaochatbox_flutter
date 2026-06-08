@@ -256,7 +256,7 @@ class _QuickStartPageState extends State<QuickStartPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '添加提示词',
+                  'quickstart.add_prompt'.tr,
                   style: TextStyle(
                     fontSize: 14,
                     color: theme.colorScheme.onPrimaryContainer,
@@ -284,9 +284,9 @@ class _QuickStartPageState extends State<QuickStartPage> {
         0,
         0,
       ),
-      items: const [
-        PopupMenuItem(value: 'edit', child: Text('修改')),
-        PopupMenuItem(value: 'delete', child: Text('删除')),
+      items: [
+        PopupMenuItem(value: 'edit', child: Text('common.edit'.tr)),
+        PopupMenuItem(value: 'delete', child: Text('common.delete'.tr)),
       ],
     ).then((value) {
       if (value == 'edit') {
@@ -306,15 +306,15 @@ class _QuickStartPageState extends State<QuickStartPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('新增提示词'),
+        title: Text('quickstart.dialog.add_title'.tr),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: tagController,
               maxLength: 20,
-              decoration: const InputDecoration(
-                labelText: '标签名称',
+              decoration: InputDecoration(
+                labelText: 'quickstart.field.tag'.tr,
                 border: OutlineInputBorder(),
               ),
             ),
@@ -323,8 +323,8 @@ class _QuickStartPageState extends State<QuickStartPage> {
               controller: contentController,
               minLines: 4,
               maxLines: 8,
-              decoration: const InputDecoration(
-                labelText: '系统提示词内容',
+              decoration: InputDecoration(
+                labelText: 'quickstart.field.content'.tr,
                 border: OutlineInputBorder(),
                 alignLabelWithHint: true,
               ),
@@ -334,7 +334,7 @@ class _QuickStartPageState extends State<QuickStartPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text('common.cancel'.tr),
           ),
           FilledButton(
             onPressed: () {
@@ -345,7 +345,7 @@ class _QuickStartPageState extends State<QuickStartPage> {
                 Navigator.pop(context);
               }
             },
-            child: const Text('确定'),
+            child: Text('common.confirm'.tr),
           ),
         ],
       ),
@@ -361,15 +361,15 @@ class _QuickStartPageState extends State<QuickStartPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('编辑提示词'),
+        title: Text('quickstart.dialog.edit_title'.tr),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: tagController,
               maxLength: 20,
-              decoration: const InputDecoration(
-                labelText: '标签名称',
+              decoration: InputDecoration(
+                labelText: 'quickstart.field.tag'.tr,
                 border: OutlineInputBorder(),
               ),
             ),
@@ -378,8 +378,8 @@ class _QuickStartPageState extends State<QuickStartPage> {
               controller: contentController,
               minLines: 4,
               maxLines: 8,
-              decoration: const InputDecoration(
-                labelText: '系统提示词内容',
+              decoration: InputDecoration(
+                labelText: 'quickstart.field.content'.tr,
                 border: OutlineInputBorder(),
                 alignLabelWithHint: true,
               ),
@@ -389,7 +389,7 @@ class _QuickStartPageState extends State<QuickStartPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text('common.cancel'.tr),
           ),
           FilledButton(
             onPressed: () {
@@ -410,7 +410,7 @@ class _QuickStartPageState extends State<QuickStartPage> {
                 Navigator.pop(context);
               }
             },
-            child: const Text('确定'),
+            child: Text('common.confirm'.tr),
           ),
         ],
       ),
@@ -422,19 +422,19 @@ class _QuickStartPageState extends State<QuickStartPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('确认删除'),
-        content: const Text('确定要删除这个提示词吗？'),
+        title: Text('quickstart.dialog.delete_title'.tr),
+        content: Text('quickstart.dialog.delete_message'.tr),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text('common.cancel'.tr),
           ),
           FilledButton(
             onPressed: () {
               logic.deletePrompt(prompt);
               Navigator.pop(context);
             },
-            child: const Text('确定'),
+            child: Text('common.confirm'.tr),
           ),
         ],
       ),

@@ -13,7 +13,7 @@ class ChatPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Obx(() => Text(logic.state.promptTag.value.isEmpty
-            ? '聊天'
+            ? 'chat.title'.tr
             : logic.state.promptTag.value)),
       ),
       body: Padding(
@@ -22,7 +22,7 @@ class ChatPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '系统提示词',
+              'chat.system_prompt'.tr,
               style: theme.textTheme.titleMedium?.copyWith(
                 color: theme.colorScheme.primary,
                 fontWeight: FontWeight.bold,
@@ -41,7 +41,7 @@ class ChatPage extends StatelessWidget {
                   padding: const EdgeInsets.all(16),
                   child: Obx(() => Text(
                         logic.state.systemPrompt.value.isEmpty
-                            ? '暂无提示词'
+                            ? 'chat.empty_prompt'.tr
                             : logic.state.systemPrompt.value,
                         style: theme.textTheme.bodyLarge?.copyWith(
                           height: 1.6,

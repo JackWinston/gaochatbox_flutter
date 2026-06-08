@@ -1,4 +1,6 @@
 import 'package:get/get.dart';
+
+import '../../../app_settings_service.dart';
 import '../../../data/model/system_prompt.dart';
 import '../../../util/system_prompt_manager.dart';
 import 'status.dart';
@@ -6,11 +8,18 @@ import 'status.dart';
 class QuickStartLogic extends GetxController {
   final QuickStartState state = QuickStartState();
   final _manager = SystemPromptManager();
+  final AppSettingsService _appSettingsService = Get.find<AppSettingsService>();
+
+  late final Worker _languageWorker;
 
   @override
   void onInit() {
     super.onInit();
     _loadPrompts();
+    _languageWorker = ever<String>(_appSettingsService.currentLanguage, (_) async {
+      await _manager.init();
+      await refreshPrompts();
+    });
   }
 
   Future<void> _loadPrompts() async {
@@ -55,5 +64,11 @@ class QuickStartLogic extends GetxController {
 
   void updateDragOverIndex(int index) {
     state.dragOverIndex.value = index;
+  }
+
+  @override
+  void onClose() {
+    _languageWorker.dispose();
+    super.onClose();
   }
 }
