@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../../app_settings_service.dart';
 import '../../../data/model/system_prompt.dart';
 import '../../../util/system_prompt_manager.dart';
+import '../../chat/view.dart';
 import 'status.dart';
 
 class QuickStartLogic extends GetxController {
@@ -59,7 +60,13 @@ class QuickStartLogic extends GetxController {
   }
 
   void onPromptTap(SystemPrompt prompt) {
-    // TODO: navigate to chat page
+    Get.to(
+      () => const ChatPage(),
+      arguments: {
+        'tag': prompt.tag,
+        'content': prompt.content,
+      },
+    );
   }
 
   void updateDragOverIndex(int index) {

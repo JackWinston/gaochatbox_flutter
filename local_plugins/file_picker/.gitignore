@@ -1,0 +1,15 @@
+.dart_tool/
+build/
+
+# Lock/caches
+pubspec.lock
+ios/file_picker/Package.resolved
+
+# Docs not needed for app runtime
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+
+# Upstream plugin examples and tests
+example/
+test/
