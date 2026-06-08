@@ -38,6 +38,58 @@ class ChatConversationStore {
     return null;
   }
 
+  Future<List<String>> getConversationTags() async {
+    final conversations = await getConversations();
+    final tags =
+        conversations
+            .map((item) => item.systemPromptTag.trim())
+            .where((item) => item.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    return tags;
+  }
+
+  Future<List<ChatConversationHistoryItem>> getConversationHistory({
+    String keyword = '',
+    String? tag,
+  }) async {
+    final conversations = await getConversations();
+    final normalizedKeyword = keyword.trim().toLowerCase();
+    final normalizedTag = tag?.trim();
+    final result = <ChatConversationHistoryItem>[];
+
+    for (final summary in conversations) {
+      if (normalizedTag != null &&
+          normalizedTag.isNotEmpty &&
+          summary.systemPromptTag != normalizedTag) {
+        continue;
+      }
+
+      final messages = await getMessages(summary.id);
+      final lastMessage = _extractLastMessagePreview(messages);
+      final searchableTexts = <String>[
+        summary.title,
+        summary.displayTag,
+        summary.systemPromptTag,
+        lastMessage,
+      ];
+
+      if (normalizedKeyword.isNotEmpty &&
+          !searchableTexts.any(
+            (item) => item.toLowerCase().contains(normalizedKeyword),
+          )) {
+        continue;
+      }
+
+      result.add(
+        ChatConversationHistoryItem(summary: summary, lastMessage: lastMessage),
+      );
+    }
+
+    return result;
+  }
+
   Future<List<StoredChatMessage>> getMessages(String conversationId) async {
     final prefs = await SharedPreferences.getInstance();
     final json = prefs.getString('$_messagePrefix$conversationId');
@@ -217,10 +269,7 @@ class ChatConversationStore {
 
   Future<int> getTotalTokens(String conversationId) async {
     final messages = await getMessages(conversationId);
-    return messages.fold<int>(
-      0,
-      (sum, item) => sum + item.tokenCount,
-    );
+    return messages.fold<int>(0, (sum, item) => sum + item.tokenCount);
   }
 
   Future<void> replaceMessages(
@@ -275,5 +324,18 @@ class ChatConversationStore {
       _keyConversationSummaries,
       jsonEncode(sorted.map((item) => item.toJson()).toList()),
     );
+  }
+
+  String _extractLastMessagePreview(List<StoredChatMessage> messages) {
+    for (final message in messages.reversed) {
+      final preview = (message.displayContent ?? message.content).trim();
+      if (preview.isNotEmpty) {
+        return preview.replaceAll(RegExp(r'\s+'), ' ');
+      }
+      if ((message.attachmentName ?? '').trim().isNotEmpty) {
+        return '[${message.attachmentName!.trim()}]';
+      }
+    }
+    return '';
   }
 }

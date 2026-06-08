@@ -33,12 +33,7 @@ enum PendingResponsePhase {
   directAnswerFallback,
 }
 
-enum ToolCallStatus {
-  pending,
-  executing,
-  completed,
-  error,
-}
+enum ToolCallStatus { pending, executing, completed, error }
 
 sealed class ChatItem {
   const ChatItem(this.id);
@@ -233,14 +228,14 @@ class ChatConversationSummary {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'systemPromptContent': systemPromptContent,
-        'systemPromptTag': systemPromptTag,
-        'displayTag': displayTag,
-        'createdAt': createdAt,
-        'updatedAt': updatedAt,
-      };
+    'id': id,
+    'title': title,
+    'systemPromptContent': systemPromptContent,
+    'systemPromptTag': systemPromptTag,
+    'displayTag': displayTag,
+    'createdAt': createdAt,
+    'updatedAt': updatedAt,
+  };
 
   factory ChatConversationSummary.fromJson(Map<String, dynamic> json) {
     return ChatConversationSummary(
@@ -253,6 +248,16 @@ class ChatConversationSummary {
       updatedAt: _readInt(json['updatedAt']),
     );
   }
+}
+
+class ChatConversationHistoryItem {
+  const ChatConversationHistoryItem({
+    required this.summary,
+    required this.lastMessage,
+  });
+
+  final ChatConversationSummary summary;
+  final String lastMessage;
 }
 
 class StoredChatMessage {
@@ -319,20 +324,20 @@ class StoredChatMessage {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'role': role,
-        'content': content,
-        'displayContent': displayContent,
-        'attachmentName': attachmentName,
-        'imageUri': imageUri,
-        'modelName': modelName,
-        'tokenCount': tokenCount,
-        'createdAt': createdAt,
-        'toolCallsJson': toolCallsJson,
-        'toolCallId': toolCallId,
-        'name': name,
-        'isStreaming': isStreaming,
-      };
+    'id': id,
+    'role': role,
+    'content': content,
+    'displayContent': displayContent,
+    'attachmentName': attachmentName,
+    'imageUri': imageUri,
+    'modelName': modelName,
+    'tokenCount': tokenCount,
+    'createdAt': createdAt,
+    'toolCallsJson': toolCallsJson,
+    'toolCallId': toolCallId,
+    'name': name,
+    'isStreaming': isStreaming,
+  };
 
   factory StoredChatMessage.fromJson(Map<String, dynamic> json) {
     return StoredChatMessage(
@@ -395,28 +400,25 @@ class OpenAiChatMessage {
   final String? name;
 
   Map<String, dynamic> toJson() => {
-        'role': role,
-        'content': content,
-        if (toolCalls != null)
-          'tool_calls': toolCalls!.map((item) => item.toJson()).toList(),
-        if (toolCallId != null) 'tool_call_id': toolCallId,
-        if (name != null) 'name': name,
-      };
+    'role': role,
+    'content': content,
+    if (toolCalls != null)
+      'tool_calls': toolCalls!.map((item) => item.toJson()).toList(),
+    if (toolCallId != null) 'tool_call_id': toolCallId,
+    if (name != null) 'name': name,
+  };
 }
 
 class ToolDefinition {
-  const ToolDefinition({
-    this.type = 'function',
-    required this.function,
-  });
+  const ToolDefinition({this.type = 'function', required this.function});
 
   final String type;
   final ToolFunctionDefinition function;
 
   Map<String, dynamic> toJson() => {
-        'type': type,
-        'function': function.toJson(),
-      };
+    'type': type,
+    'function': function.toJson(),
+  };
 }
 
 class ToolFunctionDefinition {
@@ -431,10 +433,10 @@ class ToolFunctionDefinition {
   final Map<String, dynamic> parameters;
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'description': description,
-        'parameters': parameters,
-      };
+    'name': name,
+    'description': description,
+    'parameters': parameters,
+  };
 }
 
 class ToolCall {
@@ -449,25 +451,19 @@ class ToolCall {
   final ToolCallFunction function;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'type': type,
-        'function': function.toJson(),
-      };
+    'id': id,
+    'type': type,
+    'function': function.toJson(),
+  };
 }
 
 class ToolCallFunction {
-  const ToolCallFunction({
-    required this.name,
-    required this.arguments,
-  });
+  const ToolCallFunction({required this.name, required this.arguments});
 
   final String name;
   final String arguments;
 
-  Map<String, dynamic> toJson() => {
-        'name': name,
-        'arguments': arguments,
-      };
+  Map<String, dynamic> toJson() => {'name': name, 'arguments': arguments};
 }
 
 class ToolCallDelta {
@@ -485,10 +481,7 @@ class ToolCallDelta {
 }
 
 class TokenUsage {
-  const TokenUsage({
-    this.promptTokens = 0,
-    this.completionTokens = 0,
-  });
+  const TokenUsage({this.promptTokens = 0, this.completionTokens = 0});
 
   final int promptTokens;
   final int completionTokens;
@@ -511,10 +504,7 @@ class ToolCallDeltaEvent extends ChatStreamEvent {
 }
 
 class StreamEndEvent extends ChatStreamEvent {
-  const StreamEndEvent({
-    this.usage,
-    this.finishReason,
-  });
+  const StreamEndEvent({this.usage, this.finishReason});
 
   final TokenUsage? usage;
   final String? finishReason;

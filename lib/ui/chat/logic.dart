@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 
 import '../../data/model/model_config.dart';
 import '../../data/repository/settings_repository.dart';
+import '../../util/debug_log_manager.dart';
 import '../../util/model_config_manager.dart';
 import '../../util/model_context_limit_resolver.dart';
 import 'chat_service.dart';
@@ -44,8 +45,7 @@ class ChatLogic extends GetxController {
       state.promptTag.value = args['tag'] ?? '';
       state.systemPrompt.value = args['content'] ?? '';
       state.conversationId.value = args['conversationId']?.toString() ?? '';
-      state.title.value =
-          (args['displayTag'] ?? args['tag'] ?? '').toString();
+      state.title.value = (args['displayTag'] ?? args['tag'] ?? '').toString();
     }
     if (state.title.value.isEmpty) {
       state.title.value = state.promptTag.value;
@@ -270,11 +270,9 @@ class ChatLogic extends GetxController {
         imageBase64: attachment?.imageBase64,
         mediaType: attachment?.mediaType,
         enableWebSearch: state.webSearchEnabled.value,
+        conversationId: conversation.id,
       );
-      await _startStreaming(
-        stream: stream,
-        config: config,
-      );
+      await _startStreaming(stream: stream, config: config);
     } catch (e) {
       _showErrorMessage('请求失败: $e');
       await finishStreaming();
@@ -295,8 +293,7 @@ class ChatLogic extends GetxController {
           state.pendingResponsePhase.value = PendingResponsePhase.idle;
           _triggerStreamingUpdate();
         case ToolCallDeltaEvent():
-          if (!state.webSearchEnabled.value &&
-              !ignoreDisallowedToolCalls) {
+          if (!state.webSearchEnabled.value && !ignoreDisallowedToolCalls) {
             _showErrorMessage('当前模型响应返回了未启用的工具调用。');
             await finishStreaming();
             return;
@@ -315,9 +312,7 @@ class ChatLogic extends GetxController {
             builder.arguments.write(event.delta.arguments!);
           }
         case StreamEndEvent():
-          _pendingToolCalls.removeWhere(
-            (_, item) => item.name.trim().isEmpty,
-          );
+          _pendingToolCalls.removeWhere((_, item) => item.name.trim().isEmpty);
           if (_pendingToolCalls.isNotEmpty) {
             if (_currentToolCallRoundCount >= state.maxToolCallRounds.value) {
               _pendingToolCalls.clear();
@@ -338,9 +333,7 @@ class ChatLogic extends GetxController {
             await _handleToolCalls(config);
           } else {
             _triggerStreamingUpdate();
-            await finishStreaming(
-              tokenCount: event.usage?.completionTokens,
-            );
+            await finishStreaming(tokenCount: event.usage?.completionTokens);
           }
         case StreamErrorEvent():
           _showErrorMessage(event.message);
@@ -362,7 +355,8 @@ class ChatLogic extends GetxController {
         charCount: _accumulatedContent.length,
       );
     } else {
-      final streamingId = _activeStreamingItemId ??
+      final streamingId =
+          _activeStreamingItemId ??
           'streaming_${DateTime.now().millisecondsSinceEpoch}';
       _activeStreamingItemId = streamingId;
       items.add(
@@ -380,11 +374,14 @@ class ChatLogic extends GetxController {
 
   Future<void> _handleToolCalls(ModelConfig config) async {
     final items = state.chatItems.toList();
-    final historyItems = items.where((item) => item is! StreamingMessageChatItem).toList();
+    final historyItems = items
+        .where((item) => item is! StreamingMessageChatItem)
+        .toList();
     items.removeWhere((item) => item is StreamingMessageChatItem);
     _activeStreamingItemId = null;
-    final assistantToolCallContent =
-        _accumulatedContent.trim().isEmpty ? null : _accumulatedContent;
+    final assistantToolCallContent = _accumulatedContent.trim().isEmpty
+        ? null
+        : _accumulatedContent;
     if (assistantToolCallContent != null) {
       items.add(
         AssistantMessageChatItem(
@@ -453,8 +450,9 @@ class ChatLogic extends GetxController {
     final toolExecutionSummaries = <String>[];
     for (final outcome in outcomes) {
       toolResults[outcome.toolCall.id] = outcome.result;
-      toolExecutionSummaries
-          .add('${outcome.toolCall.function.name}: ${outcome.result}');
+      toolExecutionSummaries.add(
+        '${outcome.toolCall.function.name}: ${outcome.result}',
+      );
       await _conversationStore.addToolResultMessage(
         conversationId: state.conversationId.value,
         toolCallId: outcome.toolCall.id,
@@ -463,7 +461,8 @@ class ChatLogic extends GetxController {
       );
       final current = state.chatItems.toList();
       final index = current.indexWhere(
-        (item) => item is ToolCallMessageChatItem &&
+        (item) =>
+            item is ToolCallMessageChatItem &&
             item.id == 'tool_${outcome.toolCall.id}',
       );
       if (index >= 0) {
@@ -476,8 +475,9 @@ class ChatLogic extends GetxController {
         state.chatItems.assignAll(current);
       }
     }
-    _pendingToolFallbackMessage =
-        _buildToolFallbackMessage(toolExecutionSummaries);
+    _pendingToolFallbackMessage = _buildToolFallbackMessage(
+      toolExecutionSummaries,
+    );
 
     _currentAssistantMessageId = await _conversationStore.addAssistantMessage(
       conversationId: state.conversationId.value,
@@ -520,6 +520,7 @@ class ChatLogic extends GetxController {
         toolCalls: toolCalls,
         toolResults: toolResults,
         enableWebSearch: state.webSearchEnabled.value,
+        conversationId: state.conversationId.value,
       );
       await _startStreaming(
         stream: stream,
@@ -540,7 +541,8 @@ class ChatLogic extends GetxController {
     _accumulatedContent = '';
     _pendingToolCalls.clear();
     _activeStreamingItemId = null;
-    state.pendingResponsePhase.value = PendingResponsePhase.directAnswerFallback;
+    state.pendingResponsePhase.value =
+        PendingResponsePhase.directAnswerFallback;
     try {
       final stream = await _chatService.streamToolFollowUp(
         config: config,
@@ -549,6 +551,7 @@ class ChatLogic extends GetxController {
         toolCalls: toolFollowUpContext.toolCalls,
         toolResults: toolFollowUpContext.toolResults,
         enableWebSearch: false,
+        conversationId: state.conversationId.value,
         directAnswerInstruction: '请基于已有工具结果直接给出最终回答，不要继续调用任何工具。',
       );
       await _startStreaming(
@@ -609,8 +612,7 @@ class ChatLogic extends GetxController {
       );
     }
 
-    final userMessageCount =
-        items.whereType<UserMessageChatItem>().length;
+    final userMessageCount = items.whereType<UserMessageChatItem>().length;
     if (userMessageCount == 1 && !_titleGenerated) {
       unawaited(_generateTitle(items));
     }
@@ -720,6 +722,7 @@ class ChatLogic extends GetxController {
       return;
     }
     await _conversationStore.deleteConversation(state.conversationId.value);
+    await DebugLogManager.deleteLogFile(state.conversationId.value);
   }
 
   Future<void> restartChat() async {
@@ -776,7 +779,8 @@ class ChatLogic extends GetxController {
   String? get pendingAttachmentName => _pendingAttachment?.displayName;
 
   String _effectiveSystemPrompt() {
-    if (state.systemPrompt.value.trim().isEmpty || !state.webSearchEnabled.value) {
+    if (state.systemPrompt.value.trim().isEmpty ||
+        !state.webSearchEnabled.value) {
       return state.systemPrompt.value;
     }
     return [
@@ -794,15 +798,20 @@ class ChatLogic extends GetxController {
     if (config == null) {
       return;
     }
-    final userMessage = items.whereType<UserMessageChatItem>().firstOrNull?.content;
+    final userMessage = items
+        .whereType<UserMessageChatItem>()
+        .firstOrNull
+        ?.content;
     if (userMessage == null || userMessage.trim().isEmpty) {
       return;
     }
-    final assistantMessage = items.whereType<AssistantMessageChatItem>().lastOrNull?.content ?? '';
+    final assistantMessage =
+        items.whereType<AssistantMessageChatItem>().lastOrNull?.content ?? '';
     final newTitle = await _chatService.generateTitle(
       config: config,
       userMessage: userMessage,
       assistantMessage: assistantMessage,
+      conversationId: state.conversationId.value,
     );
     if (newTitle == null || newTitle.trim().isEmpty) {
       return;
@@ -860,7 +869,8 @@ class ChatLogic extends GetxController {
 
   Future<int> _resolveContextLimit(ModelConfig config) async {
     final selectedModel = state.selectedModelName.value.trim();
-    if ((config.contextLimit ?? 0) > 0 && selectedModel == (config.defaultModel ?? '').trim()) {
+    if ((config.contextLimit ?? 0) > 0 &&
+        selectedModel == (config.defaultModel ?? '').trim()) {
       return config.contextLimit!;
     }
     return _contextLimitResolver.resolve(
@@ -894,7 +904,10 @@ class ChatLogic extends GetxController {
     }
     return displayText.trim().isEmpty
         ? state.promptTag.value
-        : displayText.trim().substring(0, displayText.trim().length.clamp(0, 50));
+        : displayText.trim().substring(
+            0,
+            displayText.trim().length.clamp(0, 50),
+          );
   }
 
   String _pendingDisplayTag() {
@@ -992,7 +1005,9 @@ class ChatLogic extends GetxController {
     final now = DateTime.now();
     final date = DateTime.fromMillisecondsSinceEpoch(millis);
     final todayStart = DateTime(now.year, now.month, now.day);
-    final diff = todayStart.difference(DateTime(date.year, date.month, date.day)).inDays;
+    final diff = todayStart
+        .difference(DateTime(date.year, date.month, date.day))
+        .inDays;
     String prefix;
     if (diff == 0) {
       prefix = '今天';

@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 
 import '../../data/model/model_config.dart';
 import '../../data/remote/api_client.dart';
+import '../../util/debug_log_manager.dart';
 import 'models.dart';
 
 class ChatService {
@@ -19,6 +20,7 @@ class ChatService {
     required String? imageBase64,
     required String? mediaType,
     required bool enableWebSearch,
+    required String conversationId,
   }) async {
     switch (config.apiType) {
       case ModelConfig.apiTypeAnthropic:
@@ -30,6 +32,7 @@ class ChatService {
           imageBase64: imageBase64,
           mediaType: mediaType,
           enableWebSearch: enableWebSearch,
+          conversationId: conversationId,
         );
       default:
         return _streamOpenAiMessage(
@@ -40,6 +43,7 @@ class ChatService {
           imageBase64: imageBase64,
           mediaType: mediaType,
           enableWebSearch: enableWebSearch,
+          conversationId: conversationId,
         );
     }
   }
@@ -51,6 +55,7 @@ class ChatService {
     required List<ToolCall> toolCalls,
     required Map<String, String> toolResults,
     required bool enableWebSearch,
+    required String conversationId,
     String? directAnswerInstruction,
   }) async {
     switch (config.apiType) {
@@ -61,6 +66,7 @@ class ChatService {
           assistantContent: assistantContent,
           toolCalls: toolCalls,
           toolResults: toolResults,
+          conversationId: conversationId,
           directAnswerInstruction: directAnswerInstruction,
         );
       default:
@@ -71,6 +77,7 @@ class ChatService {
           toolCalls: toolCalls,
           toolResults: toolResults,
           enableWebSearch: enableWebSearch,
+          conversationId: conversationId,
           directAnswerInstruction: directAnswerInstruction,
         );
     }
@@ -80,6 +87,7 @@ class ChatService {
     required ModelConfig config,
     required String userMessage,
     required String assistantMessage,
+    required String conversationId,
   }) async {
     final modelName = _resolveModelName(config);
     if (modelName.isEmpty) {
@@ -90,17 +98,24 @@ class ChatService {
     try {
       if (config.apiType == ModelConfig.apiTypeAnthropic) {
         final dio = ApiClient.buildAnthropicClient(config.apiUrl);
+        final requestData = {
+          'model': modelName,
+          'max_tokens': 100,
+          'messages': [
+            {'role': 'user', 'content': prompt},
+          ],
+          'temperature': 0.7,
+          'stream': false,
+        };
+        await DebugLogManager.appendLog(
+          conversationId: conversationId,
+          type: 'Generate Title (Anthropic)',
+          url: config.apiUrl,
+          requestBody: jsonEncode(requestData),
+        );
         final response = await dio.post<Map<String, dynamic>>(
           'messages',
-          data: {
-            'model': modelName,
-            'max_tokens': 100,
-            'messages': [
-              {'role': 'user', 'content': prompt},
-            ],
-            'temperature': 0.7,
-            'stream': false,
-          },
+          data: requestData,
           options: Options(
             headers: {
               'x-api-key': config.apiKey,
@@ -108,6 +123,12 @@ class ChatService {
               'content-type': 'application/json',
             },
           ),
+        );
+        await DebugLogManager.appendLog(
+          conversationId: conversationId,
+          type: 'Generate Title Response (Anthropic)',
+          url: config.apiUrl,
+          responseBody: jsonEncode(response.data ?? const {}),
         );
         final content = response.data?['content'];
         if (content is List) {
@@ -121,22 +142,35 @@ class ChatService {
       }
 
       final dio = ApiClient.buildOpenAiClient(config.apiUrl);
+      final requestData = {
+        'model': modelName,
+        'messages': [
+          {'role': 'user', 'content': prompt},
+        ],
+        'temperature': 0.7,
+        'stream': false,
+      };
+      await DebugLogManager.appendLog(
+        conversationId: conversationId,
+        type: 'Generate Title (OpenAI)',
+        url: config.apiUrl,
+        requestBody: jsonEncode(requestData),
+      );
       final response = await dio.post<Map<String, dynamic>>(
         'chat/completions',
-        data: {
-          'model': modelName,
-          'messages': [
-            {'role': 'user', 'content': prompt},
-          ],
-          'temperature': 0.7,
-          'stream': false,
-        },
+        data: requestData,
         options: Options(
           headers: {
             'authorization': 'Bearer ${config.apiKey}',
             'content-type': 'application/json',
           },
         ),
+      );
+      await DebugLogManager.appendLog(
+        conversationId: conversationId,
+        type: 'Generate Title Response (OpenAI)',
+        url: config.apiUrl,
+        responseBody: jsonEncode(response.data ?? const {}),
       );
       final choices = response.data?['choices'];
       if (choices is List && choices.isNotEmpty) {
@@ -149,7 +183,14 @@ class ChatService {
         }
       }
       return null;
-    } catch (_) {
+    } catch (e) {
+      await DebugLogManager.appendLog(
+        conversationId: conversationId,
+        type: 'Generate Title Error',
+        url: config.apiUrl,
+        responseBody: e.toString(),
+        isError: true,
+      );
       return null;
     }
   }
@@ -245,25 +286,29 @@ class ChatService {
     required String? imageBase64,
     required String? mediaType,
     required bool enableWebSearch,
+    required String conversationId,
   }) async {
     final dio = ApiClient.buildOpenAiClient(config.apiUrl);
+    final requestData = {
+      'model': _resolveModelName(config),
+      'messages': _buildOpenAiMessages(
+        history: history,
+        userMessage: userMessage,
+        systemPrompt: systemPrompt,
+        imageBase64: imageBase64,
+        mediaType: mediaType,
+      ),
+      'temperature': config.temperature,
+      'stream': true,
+      'stream_options': {'include_usage': true},
+      if (enableWebSearch)
+        'tools': _buildOpenAiWebSearchTools()
+            .map((item) => item.toJson())
+            .toList(),
+    };
     final response = await dio.post<ResponseBody>(
       'chat/completions',
-      data: {
-        'model': _resolveModelName(config),
-        'messages': _buildOpenAiMessages(
-          history: history,
-          userMessage: userMessage,
-          systemPrompt: systemPrompt,
-          imageBase64: imageBase64,
-          mediaType: mediaType,
-        ),
-        'temperature': config.temperature,
-        'stream': true,
-        'stream_options': {'include_usage': true},
-        if (enableWebSearch)
-          'tools': _buildOpenAiWebSearchTools().map((item) => item.toJson()).toList(),
-      },
+      data: requestData,
       options: Options(
         responseType: ResponseType.stream,
         headers: {
@@ -272,7 +317,13 @@ class ChatService {
         },
       ),
     );
-    return _parseOpenAiStream(response.data);
+    return _wrapStreamWithLogging(
+      conversationId: conversationId,
+      type: 'OpenAI Chat',
+      url: config.apiUrl,
+      requestJson: jsonEncode(requestData),
+      originalStream: _parseOpenAiStream(response.data),
+    );
   }
 
   Future<Stream<ChatStreamEvent>> _streamAnthropicMessage({
@@ -283,26 +334,27 @@ class ChatService {
     required String? imageBase64,
     required String? mediaType,
     required bool enableWebSearch,
+    required String conversationId,
   }) async {
     final dio = ApiClient.buildAnthropicClient(config.apiUrl);
+    final requestData = {
+      'model': _resolveModelName(config),
+      'max_tokens': 4096,
+      if (systemPrompt != null && systemPrompt.trim().isNotEmpty)
+        'system': systemPrompt,
+      'messages': _buildAnthropicMessages(
+        history: history,
+        userMessage: userMessage,
+        imageBase64: imageBase64,
+        mediaType: mediaType,
+      ),
+      'temperature': config.temperature,
+      'stream': true,
+      if (enableWebSearch) 'tools': _buildAnthropicWebSearchTools(),
+    };
     final response = await dio.post<ResponseBody>(
       'messages',
-      data: {
-        'model': _resolveModelName(config),
-        'max_tokens': 4096,
-        if (systemPrompt != null && systemPrompt.trim().isNotEmpty)
-          'system': systemPrompt,
-        'messages': _buildAnthropicMessages(
-          history: history,
-          userMessage: userMessage,
-          imageBase64: imageBase64,
-          mediaType: mediaType,
-        ),
-        'temperature': config.temperature,
-        'stream': true,
-        if (enableWebSearch)
-          'tools': _buildAnthropicWebSearchTools(),
-      },
+      data: requestData,
       options: Options(
         responseType: ResponseType.stream,
         headers: {
@@ -312,7 +364,13 @@ class ChatService {
         },
       ),
     );
-    return _parseAnthropicStream(response.data);
+    return _wrapStreamWithLogging(
+      conversationId: conversationId,
+      type: 'Anthropic Chat',
+      url: config.apiUrl,
+      requestJson: jsonEncode(requestData),
+      originalStream: _parseAnthropicStream(response.data),
+    );
   }
 
   Future<Stream<ChatStreamEvent>> _streamOpenAiToolFollowUp({
@@ -322,11 +380,13 @@ class ChatService {
     required List<ToolCall> toolCalls,
     required Map<String, String> toolResults,
     required bool enableWebSearch,
+    required String conversationId,
     String? directAnswerInstruction,
   }) async {
     final dio = ApiClient.buildOpenAiClient(config.apiUrl);
     final messages = history.map((item) => item.toJson()).toList();
-    if (directAnswerInstruction == null || directAnswerInstruction.trim().isEmpty) {
+    if (directAnswerInstruction == null ||
+        directAnswerInstruction.trim().isEmpty) {
       messages.add(
         OpenAiChatMessage(
           role: 'assistant',
@@ -361,18 +421,21 @@ class ChatService {
       );
     }
 
+    final requestData = {
+      'model': _resolveModelName(config),
+      'messages': messages,
+      'temperature': config.temperature,
+      'stream': true,
+      'stream_options': {'include_usage': true},
+      if (enableWebSearch)
+        'tools': _buildOpenAiWebSearchTools()
+            .map((item) => item.toJson())
+            .toList(),
+      if (!enableWebSearch) 'tool_choice': 'none',
+    };
     final response = await dio.post<ResponseBody>(
       'chat/completions',
-      data: {
-        'model': _resolveModelName(config),
-        'messages': messages,
-        'temperature': config.temperature,
-        'stream': true,
-        'stream_options': {'include_usage': true},
-        if (enableWebSearch)
-          'tools': _buildOpenAiWebSearchTools().map((item) => item.toJson()).toList(),
-        if (!(enableWebSearch)) 'tool_choice': 'none',
-      },
+      data: requestData,
       options: Options(
         responseType: ResponseType.stream,
         headers: {
@@ -381,7 +444,13 @@ class ChatService {
         },
       ),
     );
-    return _parseOpenAiStream(response.data);
+    return _wrapStreamWithLogging(
+      conversationId: conversationId,
+      type: 'OpenAI Tool Follow Up',
+      url: config.apiUrl,
+      requestJson: jsonEncode(requestData),
+      originalStream: _parseOpenAiStream(response.data),
+    );
   }
 
   Future<Stream<ChatStreamEvent>> _streamAnthropicToolFollowUp({
@@ -390,6 +459,7 @@ class ChatService {
     required String? assistantContent,
     required List<ToolCall> toolCalls,
     required Map<String, String> toolResults,
+    required String conversationId,
     String? directAnswerInstruction,
   }) async {
     final dio = ApiClient.buildAnthropicClient(config.apiUrl);
@@ -401,26 +471,26 @@ class ChatService {
     for (final toolCall in toolCalls) {
       messages.add({
         'role': 'user',
-        'content': '[工具 ${toolCall.function.name} 结果]\n${toolResults[toolCall.id] ?? "工具执行失败"}',
+        'content':
+            '[工具 ${toolCall.function.name} 结果]\n${toolResults[toolCall.id] ?? "工具执行失败"}',
       });
     }
-    if (directAnswerInstruction != null && directAnswerInstruction.trim().isNotEmpty) {
-      messages.add({
-        'role': 'user',
-        'content': directAnswerInstruction,
-      });
+    if (directAnswerInstruction != null &&
+        directAnswerInstruction.trim().isNotEmpty) {
+      messages.add({'role': 'user', 'content': directAnswerInstruction});
     }
+    final requestData = {
+      'model': _resolveModelName(config),
+      'max_tokens': 4096,
+      if (systemPrompt != null && systemPrompt.trim().isNotEmpty)
+        'system': systemPrompt,
+      'messages': messages,
+      'temperature': config.temperature,
+      'stream': true,
+    };
     final response = await dio.post<ResponseBody>(
       'messages',
-      data: {
-        'model': _resolveModelName(config),
-        'max_tokens': 4096,
-        if (systemPrompt != null && systemPrompt.trim().isNotEmpty)
-          'system': systemPrompt,
-        'messages': messages,
-        'temperature': config.temperature,
-        'stream': true,
-      },
+      data: requestData,
       options: Options(
         responseType: ResponseType.stream,
         headers: {
@@ -430,7 +500,82 @@ class ChatService {
         },
       ),
     );
-    return _parseAnthropicStream(response.data);
+    return _wrapStreamWithLogging(
+      conversationId: conversationId,
+      type: 'Anthropic Tool Follow Up',
+      url: config.apiUrl,
+      requestJson: jsonEncode(requestData),
+      originalStream: _parseAnthropicStream(response.data),
+    );
+  }
+
+  Stream<ChatStreamEvent> _wrapStreamWithLogging({
+    required String conversationId,
+    required String type,
+    required String url,
+    required String requestJson,
+    required Stream<ChatStreamEvent> originalStream,
+  }) async* {
+    await DebugLogManager.appendLog(
+      conversationId: conversationId,
+      type: type,
+      url: url,
+      requestBody: requestJson,
+    );
+    final responseBuilder = StringBuffer();
+    TokenUsage? lastUsage;
+    String? finishReason;
+    try {
+      await for (final event in originalStream) {
+        switch (event) {
+          case ContentDeltaEvent():
+            responseBuilder.write(event.text);
+          case ToolCallDeltaEvent():
+            if ((event.delta.functionName ?? '').isNotEmpty) {
+              responseBuilder.write('[tool_call:${event.delta.functionName}]');
+            }
+            if ((event.delta.arguments ?? '').isNotEmpty) {
+              responseBuilder.write(event.delta.arguments);
+            }
+          case StreamEndEvent():
+            lastUsage = event.usage;
+            finishReason = event.finishReason;
+            await DebugLogManager.appendLog(
+              conversationId: conversationId,
+              type: '$type Response',
+              url: url,
+              responseBody: jsonEncode({
+                'content': responseBuilder.toString(),
+                'usage': lastUsage == null
+                    ? null
+                    : {
+                        'promptTokens': lastUsage.promptTokens,
+                        'completionTokens': lastUsage.completionTokens,
+                      },
+                'finishReason': finishReason,
+              }),
+            );
+          case StreamErrorEvent():
+            await DebugLogManager.appendLog(
+              conversationId: conversationId,
+              type: '$type Error',
+              url: url,
+              responseBody: event.message,
+              isError: true,
+            );
+        }
+        yield event;
+      }
+    } catch (e) {
+      await DebugLogManager.appendLog(
+        conversationId: conversationId,
+        type: '$type Error',
+        url: url,
+        responseBody: e.toString(),
+        isError: true,
+      );
+      rethrow;
+    }
   }
 
   List<Map<String, dynamic>> _buildOpenAiMessages({
@@ -495,10 +640,7 @@ class ChatService {
           parameters: {
             'type': 'object',
             'properties': {
-              'query': {
-                'type': 'string',
-                'description': '搜索关键词',
-              },
+              'query': {'type': 'string', 'description': '搜索关键词'},
             },
             'required': ['query'],
           },
@@ -511,10 +653,7 @@ class ChatService {
           parameters: {
             'type': 'object',
             'properties': {
-              'url': {
-                'type': 'string',
-                'description': '完整的网页 URL',
-              },
+              'url': {'type': 'string', 'description': '完整的网页 URL'},
             },
             'required': ['url'],
           },
@@ -531,10 +670,7 @@ class ChatService {
         'input_schema': {
           'type': 'object',
           'properties': {
-            'query': {
-              'type': 'string',
-              'description': '搜索关键词',
-            },
+            'query': {'type': 'string', 'description': '搜索关键词'},
           },
           'required': ['query'],
         },
@@ -545,10 +681,7 @@ class ChatService {
         'input_schema': {
           'type': 'object',
           'properties': {
-            'url': {
-              'type': 'string',
-              'description': '完整的网页 URL',
-            },
+            'url': {'type': 'string', 'description': '完整的网页 URL'},
           },
           'required': ['url'],
         },
@@ -562,10 +695,11 @@ class ChatService {
       return;
     }
     TokenUsage? lastUsage;
-    await for (final line in body.stream
-        .cast<List<int>>()
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())) {
+    await for (final line
+        in body.stream
+            .cast<List<int>>()
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())) {
       if (!line.startsWith('data: ')) {
         continue;
       }
@@ -623,10 +757,7 @@ class ChatService {
         }
         final finishReason = first['finish_reason']?.toString();
         if (finishReason != null && finishReason != 'stop') {
-          yield StreamEndEvent(
-            usage: lastUsage,
-            finishReason: finishReason,
-          );
+          yield StreamEndEvent(usage: lastUsage, finishReason: finishReason);
           break;
         }
       } catch (_) {
@@ -641,10 +772,11 @@ class ChatService {
       return;
     }
     TokenUsage? lastUsage;
-    await for (final line in body.stream
-        .cast<List<int>>()
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())) {
+    await for (final line
+        in body.stream
+            .cast<List<int>>()
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())) {
       if (!line.startsWith('data: ')) {
         continue;
       }
@@ -667,7 +799,8 @@ class ChatService {
                 if (text.isNotEmpty) {
                   yield ContentDeltaEvent(text);
                 }
-              } else if ((delta['type']?.toString() ?? '') == 'input_json_delta') {
+              } else if ((delta['type']?.toString() ?? '') ==
+                  'input_json_delta') {
                 final partial = delta['partial_json']?.toString();
                 if (partial != null && partial.isNotEmpty) {
                   yield ToolCallDeltaEvent(
@@ -775,11 +908,17 @@ class ChatService {
     final anchors = anchorRegex.allMatches(html).toList();
     final snippets = snippetRegex.allMatches(html).toList();
     final results = <_SearchResult>[];
-    for (var index = 0; index < anchors.length && results.length < 10; index++) {
+    for (
+      var index = 0;
+      index < anchors.length && results.length < 10;
+      index++
+    ) {
       final match = anchors[index];
       final rawUrl = match.group(1) ?? '';
       final rawTitle = match.group(2) ?? '';
-      final snippet = index < snippets.length ? _stripHtml(snippets[index].group(1) ?? '') : '';
+      final snippet = index < snippets.length
+          ? _stripHtml(snippets[index].group(1) ?? '')
+          : '';
       final title = _stripHtml(rawTitle);
       final url = _extractRedirectUrl(rawUrl);
       if (title.isNotEmpty && url.isNotEmpty) {
@@ -805,20 +944,28 @@ class ChatService {
       caseSensitive: false,
       dotAll: true,
     );
-    final snippetRegex = RegExp('<p[^>]*>(.*?)</p>', caseSensitive: false, dotAll: true);
+    final snippetRegex = RegExp(
+      '<p[^>]*>(.*?)</p>',
+      caseSensitive: false,
+      dotAll: true,
+    );
     final results = <_SearchResult>[];
     for (final blockMatch in blockRegex.allMatches(html)) {
       if (results.length >= 10) {
         break;
       }
       final block = blockMatch.group(1) ?? '';
-      final titleMatch = insideAnchorRegex.firstMatch(block) ?? outsideAnchorRegex.firstMatch(block);
+      final titleMatch =
+          insideAnchorRegex.firstMatch(block) ??
+          outsideAnchorRegex.firstMatch(block);
       if (titleMatch == null) {
         continue;
       }
       final url = _stripHtml(titleMatch.group(1) ?? '');
       final title = _stripHtml(titleMatch.group(2) ?? '');
-      final snippet = _stripHtml(snippetRegex.firstMatch(block)?.group(1) ?? '');
+      final snippet = _stripHtml(
+        snippetRegex.firstMatch(block)?.group(1) ?? '',
+      );
       if (title.isNotEmpty && url.isNotEmpty) {
         results.add(_SearchResult(title: title, url: url, snippet: snippet));
       }
@@ -867,11 +1014,7 @@ class ChatService {
           ' ',
         )
         .replaceAll(
-          RegExp(
-            '<style[^>]*>.*?</style>',
-            caseSensitive: false,
-            dotAll: true,
-          ),
+          RegExp('<style[^>]*>.*?</style>', caseSensitive: false, dotAll: true),
           ' ',
         )
         .replaceAll(
@@ -882,7 +1025,9 @@ class ChatService {
           ),
           ' ',
         );
-    final text = _stripHtml(withoutScripts).replaceAll(RegExp(r'\s+'), ' ').trim();
+    final text = _stripHtml(
+      withoutScripts,
+    ).replaceAll(RegExp(r'\s+'), ' ').trim();
     if (text.isEmpty) {
       return '未提取到可读正文';
     }
@@ -903,7 +1048,9 @@ class ChatService {
 
   Map<String, String> _browserHeaders(String url) {
     final uri = Uri.tryParse(url);
-    final referer = uri == null ? 'https://www.google.com/' : '${uri.scheme}://${uri.host}/';
+    final referer = uri == null
+        ? 'https://www.google.com/'
+        : '${uri.scheme}://${uri.host}/';
     return {
       'user-agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',

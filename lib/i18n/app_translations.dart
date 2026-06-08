@@ -17,14 +17,14 @@ class AppTranslations extends Translations {
 
   @override
   Map<String, Map<String, String>> get keys => {
-        'zh': _zh,
-        'zh_CN': _zh,
-        'zh_TW': _zh,
-        'zh_HK': _zh,
-        'en': _en,
-        'en_US': _en,
-        'en_GB': _en,
-      };
+    'zh': _zh,
+    'zh_CN': _zh,
+    'zh_TW': _zh,
+    'zh_HK': _zh,
+    'en': _en,
+    'en_US': _en,
+    'en_GB': _en,
+  };
 
   static String presetTag(String presetKey, {Locale? locale}) {
     final code = _languageCode(locale);
@@ -49,6 +49,32 @@ class AppTranslations extends Translations {
     'nav.history': '历史记录',
     'nav.settings': '设置',
     'history.title': '历史记录',
+    'history.search_hint': '搜索标题或消息内容',
+    'history.filter_by_tag': '按标签筛选',
+    'history.filter_all': '全部',
+    'history.active_filter': '筛选: @tag',
+    'history.empty': '暂无历史会话',
+    'history.empty_search': '没有匹配的历史记录',
+    'history.no_message': '暂无消息预览',
+    'history.menu.debug': '查看调试日志',
+    'history.menu.delete': '删除对话',
+    'history.delete_title': '删除会话',
+    'history.delete_message': '确认删除这条历史会话吗？',
+    'history.deleted': '会话已删除',
+    'history.debug_unavailable': '调试日志页暂未实现',
+    'history.time.yesterday': '昨天',
+    'history.time.day_before_yesterday': '前天',
+    'debug_log.title': '调试日志',
+    'debug_log.copy': '复制',
+    'debug_log.delete': '删除日志',
+    'debug_log.empty': '暂无调试日志',
+    'debug_log.error': '错误',
+    'debug_log.request': '请求',
+    'debug_log.response': '响应',
+    'debug_log.copied': '调试日志已复制',
+    'debug_log.deleted': '调试日志已删除',
+    'debug_log.delete_title': '删除调试日志',
+    'debug_log.delete_message': '确认删除“@title”的调试日志吗？',
     'chat.title': '聊天',
     'chat.system_prompt': '系统提示词',
     'chat.empty_prompt': '暂无提示词',
@@ -99,8 +125,7 @@ class AppTranslations extends Translations {
     'settings.language.en': 'English',
     'settings.dialog.max_tool_call_rounds': '最大工具调用轮次',
     'settings.snackbar.invalid_input': '输入无效',
-    'settings.snackbar.invalid_rounds':
-        '请输入 @min 到 @max 之间的整数',
+    'settings.snackbar.invalid_rounds': '请输入 @min 到 @max 之间的整数',
     'settings.dialog.add_model': '添加模型',
     'settings.dialog.edit_model': '编辑模型',
     'settings.field.tag': '标签名称',
@@ -138,6 +163,32 @@ class AppTranslations extends Translations {
     'nav.history': 'History',
     'nav.settings': 'Settings',
     'history.title': 'History',
+    'history.search_hint': 'Search title or message',
+    'history.filter_by_tag': 'Filter by tag',
+    'history.filter_all': 'All',
+    'history.active_filter': 'Filter: @tag',
+    'history.empty': 'No history yet',
+    'history.empty_search': 'No matching history found',
+    'history.no_message': 'No message preview',
+    'history.menu.debug': 'View Debug Log',
+    'history.menu.delete': 'Delete Conversation',
+    'history.delete_title': 'Delete Conversation',
+    'history.delete_message': 'Delete this conversation?',
+    'history.deleted': 'Conversation deleted',
+    'history.debug_unavailable': 'Debug log page is not available yet',
+    'history.time.yesterday': 'Yesterday',
+    'history.time.day_before_yesterday': '2 days ago',
+    'debug_log.title': 'Debug Log',
+    'debug_log.copy': 'Copy',
+    'debug_log.delete': 'Delete Log',
+    'debug_log.empty': 'No debug log yet',
+    'debug_log.error': 'Error',
+    'debug_log.request': 'Request',
+    'debug_log.response': 'Response',
+    'debug_log.copied': 'Debug log copied',
+    'debug_log.deleted': 'Debug log deleted',
+    'debug_log.delete_title': 'Delete Debug Log',
+    'debug_log.delete_message': 'Delete debug log for "@title"?',
     'chat.title': 'Chat',
     'chat.system_prompt': 'System Prompt',
     'chat.empty_prompt': 'No prompt yet',
@@ -161,8 +212,7 @@ class AppTranslations extends Translations {
     'settings.section.model.subtitle':
         'Configure OpenAI / Anthropic endpoints and default models',
     'settings.section.ui.title': 'UI',
-    'settings.section.ui.subtitle':
-        'Theme, language, and display preferences',
+    'settings.section.ui.subtitle': 'Theme, language, and display preferences',
     'settings.section.capability.title': 'Capabilities',
     'settings.section.capability.subtitle':
         'Web search and tool call limitations',
@@ -191,7 +241,8 @@ class AppTranslations extends Translations {
     'settings.language.en': 'English',
     'settings.dialog.max_tool_call_rounds': 'Max Tool Call Rounds',
     'settings.snackbar.invalid_input': 'Invalid input',
-    'settings.snackbar.invalid_rounds': 'Enter an integer between @min and @max',
+    'settings.snackbar.invalid_rounds':
+        'Enter an integer between @min and @max',
     'settings.dialog.add_model': 'Add Model',
     'settings.dialog.edit_model': 'Edit Model',
     'settings.field.tag': 'Tag',
@@ -210,7 +261,8 @@ class AppTranslations extends Translations {
     'settings.snackbar.request_unavailable': 'Request unavailable',
     'settings.snackbar.fill_url_key': 'Fill in API URL and API Key first',
     'settings.snackbar.request_done': 'Request finished',
-    'settings.snackbar.empty_model_list': 'The API returned an empty model list',
+    'settings.snackbar.empty_model_list':
+        'The API returned an empty model list',
     'settings.snackbar.request_success': 'Request succeeded',
     'settings.snackbar.models_fetched': 'Fetched @count models',
     'settings.snackbar.request_failed': 'Request failed',
@@ -226,10 +278,7 @@ class AppTranslations extends Translations {
 
   static const Map<String, Map<String, Map<String, String>>> _presetTexts = {
     'zh': {
-      _presetDefault: {
-        'tag': '默认',
-        'content': '你是一个智能助手',
-      },
+      _presetDefault: {'tag': '默认', 'content': '你是一个智能助手'},
       _presetFamilyDoctor: {
         'tag': '家庭医生',
         'content':
@@ -257,8 +306,7 @@ class AppTranslations extends Translations {
       },
       _presetInterviewCoach: {
         'tag': '面试教练',
-        'content':
-            '你是一名面试教练，请围绕岗位要求帮助我准备自我介绍、项目亮点、常见追问和回答优化建议；必要时模拟面试并给出反馈。',
+        'content': '你是一名面试教练，请围绕岗位要求帮助我准备自我介绍、项目亮点、常见追问和回答优化建议；必要时模拟面试并给出反馈。',
       },
       _presetStudyTutor: {
         'tag': '学习辅导',
