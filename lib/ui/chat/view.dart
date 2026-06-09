@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -21,9 +22,11 @@ class _ChatPageState extends State<ChatPage> {
   late final ChatLogic logic;
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final Map<String, GlobalKey> _itemKeys = {};
   bool _wasNearBottom = true;
   int _lastItemCount = 0;
   bool _scrollScheduled = false;
+  bool _initialHistoryScrollHandled = false;
 
   @override
   void initState() {
@@ -51,7 +54,15 @@ class _ChatPageState extends State<ChatPage> {
     return Obx(() {
       final items = logic.state.chatItems;
       final streaming = logic.state.isStreaming.value;
-      if ((items.length != _lastItemCount || streaming) && (_wasNearBottom || streaming)) {
+      final initialTargetUserId = _initialHistoryScrollHandled
+          ? null
+          : _findLastUserMessageItemId(items);
+      if (initialTargetUserId != null && !logic.state.isLoading.value) {
+        _initialHistoryScrollHandled = true;
+        _lastItemCount = items.length;
+        _scheduleScrollToLastUserMessage(initialTargetUserId);
+      } else if ((items.length != _lastItemCount || streaming) &&
+          (_wasNearBottom || streaming)) {
         _lastItemCount = items.length;
         _scheduleScrollToBottom();
       }
@@ -86,7 +97,10 @@ class _ChatPageState extends State<ChatPage> {
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final item = items[index];
-                    return _buildItem(context, theme, item);
+                    return KeyedSubtree(
+                      key: _itemKeyFor(item.id),
+                      child: _buildItem(context, theme, item),
+                    );
                   },
                 ),
               ),
@@ -299,6 +313,7 @@ class _ChatPageState extends State<ChatPage> {
           ),
         );
       case StreamingMessageChatItem():
+        final isStreamingActive = logic.state.isStreaming.value;
         final elapsedSeconds = item.thinkingStartTime <= 0
             ? 0
             : ((DateTime.now().millisecondsSinceEpoch - item.thinkingStartTime) /
@@ -327,7 +342,7 @@ class _ChatPageState extends State<ChatPage> {
                       padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
                       child: Row(
                         children: [
-                          if (item.isThinking)
+                          if (isStreamingActive)
                             const SizedBox(
                               width: 18,
                               height: 18,
@@ -341,9 +356,11 @@ class _ChatPageState extends State<ChatPage> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              item.isThinking && item.content.isEmpty
+                              isStreamingActive &&
+                                      item.isThinking &&
+                                      item.content.isEmpty
                                   ? '思考中'
-                                  : item.isThinking
+                                  : isStreamingActive
                                   ? '正在回复'
                                   : '已完成',
                               style: theme.textTheme.titleSmall?.copyWith(
@@ -351,7 +368,7 @@ class _ChatPageState extends State<ChatPage> {
                               ),
                             ),
                           ),
-                          if (item.isThinking)
+                          if (isStreamingActive)
                             TextButton(
                               onPressed: _showStopStreamingDialog,
                               child: const Text('停止'),
@@ -427,8 +444,10 @@ class _ChatPageState extends State<ChatPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    SelectableText(
+                    Text(
                       item.arguments,
+                      maxLines: 12,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -447,8 +466,10 @@ class _ChatPageState extends State<ChatPage> {
                           color: theme.colorScheme.surface,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: SelectableText(
+                        child: Text(
                           item.result,
+                          maxLines: 12,
+                          overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
                         ),
                       ),
@@ -959,6 +980,87 @@ class _ChatPageState extends State<ChatPage> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  void _scheduleScrollToLastUserMessage(String itemId) {
+    if (_scrollScheduled) {
+      return;
+    }
+    _scrollScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _scrollScheduled = false;
+      await _scrollToHistoryUserMessage(itemId);
+    });
+  }
+
+  Future<void> _scrollToHistoryUserMessage(String itemId) async {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    final position = _scrollController.position;
+    _scrollController.jumpTo(position.maxScrollExtent);
+    await _waitForNextFrame();
+
+    for (var attempt = 0; attempt < 24; attempt++) {
+      if (!mounted || !_scrollController.hasClients) {
+        return;
+      }
+      final targetContext = _itemKeys[itemId]?.currentContext;
+      if (targetContext != null) {
+        if (!targetContext.mounted) {
+          return;
+        }
+        await Scrollable.ensureVisible(
+          targetContext,
+          alignment: 0.08,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+        );
+        return;
+      }
+
+      final currentPosition = _scrollController.position;
+      if (currentPosition.pixels <= currentPosition.minScrollExtent) {
+        return;
+      }
+      final nextOffset =
+          (currentPosition.pixels - currentPosition.viewportDimension * 0.85)
+              .clamp(
+                currentPosition.minScrollExtent,
+                currentPosition.maxScrollExtent,
+              )
+              .toDouble();
+      if (nextOffset == currentPosition.pixels) {
+        return;
+      }
+      _scrollController.jumpTo(nextOffset);
+      await _waitForNextFrame();
+    }
+  }
+
+  Future<void> _waitForNextFrame() {
+    final completer = Completer<void>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      completer.complete();
+    });
+    return completer.future;
+  }
+
+  String? _findLastUserMessageItemId(List<ChatItem> items) {
+    if (logic.state.conversationId.value.isEmpty) {
+      return null;
+    }
+    for (var index = items.length - 1; index >= 0; index--) {
+      final item = items[index];
+      if (item is UserMessageChatItem) {
+        return item.id;
+      }
+    }
+    return null;
+  }
+
+  GlobalKey _itemKeyFor(String itemId) {
+    return _itemKeys.putIfAbsent(itemId, GlobalKey.new);
   }
 
   bool _isNearBottom() {
