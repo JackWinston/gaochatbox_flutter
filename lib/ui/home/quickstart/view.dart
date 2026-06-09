@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:get/get.dart';
-import '../../../data/model/system_prompt.dart';
+import 'package:chatbox_flutter/data/model/system_prompt.dart';
 import 'logic.dart';
 
 /// 快捷开始页面
