@@ -13,3 +13,4 @@ CONTRIBUTING.md
 # Upstream plugin examples and tests
 example/
 test/
+android/.gradle/

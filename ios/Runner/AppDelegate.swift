@@ -12,5 +12,16 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+
+    // 注册调试日志原生视图
+    let channel = FlutterMethodChannel(
+      name: "com.gao.chatbox/debug_log_view",
+      binaryMessenger: engineBridge.engine.binaryMessenger
+    )
+    let factory = DebugLogViewFactory(channel: channel)
+    engineBridge.pluginRegistry.registrar(forPlugin: "DebugLogPlatformView")?.register(
+      factory,
+      withId: "com.gao.chatbox/debug_log_list"
+    )
   }
 }
